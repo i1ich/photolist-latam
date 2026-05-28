@@ -1,3 +1,3 @@
-# 📷 PhotoList LATAM
+# PhotoList LATAM
 
-> Сфотографируй вещь — узнай цену перепродажи на MercadoLibr
+Сфотографируй вещь — узнай цену перепродажи на MercadoLibre.
