@@ -36,3 +36,6 @@ Thumbs.db
 
 # Mobile Tools for Java (J2ME)
 .mtj.t
+
+.claude/
+.claude/CONTRIBUTING_AGENTS.md

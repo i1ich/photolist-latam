@@ -6,6 +6,7 @@ import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.apigateway.*;
 import software.amazon.awscdk.services.lambda.*;
 import software.amazon.awscdk.services.lambda.Runtime;
+import software.amazon.awscdk.services.ssm.StringParameter;
 import software.constructs.Construct;
 
 import java.util.Map;
@@ -22,8 +23,8 @@ public class PhotolistApiStack extends Stack {
                 .runtime(Runtime.JAVA_21)
                 .handler("com.photolist.GenerateUploadUrlHandler::handleRequest")
                 .code(Code.fromAsset("../functions/generate-upload-url/target/generate-upload-url.jar"))
-                .memorySize(512)
-                .timeout(Duration.seconds(10))
+                .memorySize(128)
+                .timeout(Duration.seconds(5))
                 .environment(Map.of(
                         "BUCKET_NAME", storageStack.getPhotoUploadsBucket().getBucketName()
                 ))
@@ -31,22 +32,30 @@ public class PhotolistApiStack extends Stack {
 
         storageStack.getPhotoUploadsBucket().grantPut(generateUploadUrlFn);
 
+        StringParameter openAiApiKeyParam = StringParameter.Builder.create(this, "OpenAiApiKeyParam")
+                .parameterName("/photolist/openai-api-key")
+                .stringValue("REPLACE_ME")
+                .description("OpenAI API key — set manually post-deploy")
+                .build();
+
         // Lambda: analyze-photo
         Function analyzePhotoFn = Function.Builder.create(this, "AnalyzePhotoFn")
                 .functionName("photolist-analyze-photo")
                 .runtime(Runtime.JAVA_21)
                 .handler("com.photolist.AnalyzePhotoHandler::handleRequest")
                 .code(Code.fromAsset("../functions/analyze-photo/target/analyze-photo.jar"))
-                .memorySize(1024)
+                .memorySize(512)
                 .timeout(Duration.seconds(30))
                 .environment(Map.of(
                         "BUCKET_NAME", storageStack.getPhotoUploadsBucket().getBucketName(),
-                        "TABLE_NAME", storageStack.getResultsCacheTable().getTableName()
+                        "TABLE_NAME", storageStack.getResultsCacheTable().getTableName(),
+                        "OPENAI_API_KEY_PARAM", openAiApiKeyParam.getParameterName()
                 ))
                 .build();
 
         storageStack.getPhotoUploadsBucket().grantRead(analyzePhotoFn);
         storageStack.getResultsCacheTable().grantReadWriteData(analyzePhotoFn);
+        openAiApiKeyParam.grantRead(analyzePhotoFn);
 
         // API Gateway
         RestApi api = RestApi.Builder.create(this, "PhotolistApi")
