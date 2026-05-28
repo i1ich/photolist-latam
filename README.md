@@ -1,2 +1,3 @@
-# photolist-latam
-Photo to item ID conversion. MercadoLibre resale price evaluation. LATAM-first. AWS Lambda + Vision LLM.
+# 📷 PhotoList LATAM
+
+> Сфотографируй вещь — узнай цену перепродажи на MercadoLibr
