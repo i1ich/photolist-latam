@@ -16,9 +16,9 @@ jobs:
           java-version: '21'
           distribution: 'corretto'
       - name: Build analyze-photo
-        run: cd functions/analyze-photo && mvn package -q
+        run: ./mvnw -f functions/analyze-photo/pom.xml package -q
       - name: Build generate-upload-url
-        run: cd functions/generate-upload-url && mvn package -q
+        run: ./mvnw -f functions/generate-upload-url/pom.xml package -q
 
   build-frontend:
     runs-on: ubuntu-latest

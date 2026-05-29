@@ -10,13 +10,13 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
-public class GenerateUploadUrlHandler implements RequestHandler<Map<String, Object>, Map<String, String>> {
+public class GenerateUploadUrlHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
     private final String bucketName = System.getenv("BUCKET_NAME");
     private final S3Presigner presigner = S3Presigner.create();
 
     @Override
-    public Map<String, String> handleRequest(Map<String, Object> event, Context context) {
+    public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
         String imageKey = "uploads/" + UUID.randomUUID() + ".jpg";
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -31,7 +31,8 @@ public class GenerateUploadUrlHandler implements RequestHandler<Map<String, Obje
 
         return Map.of(
                 "uploadUrl", presignedRequest.url().toString(),
-                "imageKey", imageKey
+                "imageKey", imageKey,
+                "expiresIn", 300
         );
     }
 }

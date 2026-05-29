@@ -11,6 +11,9 @@ import java.util.List;
 
 public class PhotolistStorageStack extends Stack {
 
+    /** Cache TTL per architecture spec; analyze-photo sets `ttl` = now + this many days. */
+    public static final int RESULTS_CACHE_TTL_DAYS = 7;
+
     private final Bucket photoUploadsBucket;
     private final Table resultsCacheTable;
 
@@ -34,7 +37,7 @@ public class PhotolistStorageStack extends Stack {
                 ))
                 .build();
 
-        // DynamoDB table for results cache
+        // DynamoDB table for results cache — items expire 7 days after write (ttl attribute)
         resultsCacheTable = Table.Builder.create(this, "ResultsCacheTable")
                 .tableName("photolist-results-cache")
                 .partitionKey(Attribute.builder()
