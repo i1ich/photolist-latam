@@ -15,8 +15,8 @@ jobs:
         with:
           java-version: '21'
           distribution: 'corretto'
-      - name: Build analyze-photo
-        run: ./mvnw -f functions/analyze-photo/pom.xml package -q
+      - name: Build and test analyze-photo
+        run: ./mvnw -f functions/analyze-photo/pom.xml verify -q
       - name: Build generate-upload-url
         run: ./mvnw -f functions/generate-upload-url/pom.xml package -q
 
