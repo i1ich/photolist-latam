@@ -76,7 +76,7 @@ public class MercadoLibreService {
         return parseMarketInfo(response.body(), resolvedSite);
     }
 
-    private String resolveSite(String site) {
+    String resolveSite(String site) {
         if (site != null && !site.isBlank()) {
             return site.trim().toUpperCase();
         }
@@ -126,7 +126,7 @@ public class MercadoLibreService {
         return market;
     }
 
-    private static double computeMedian(List<Double> prices) {
+    static double computeMedian(List<Double> prices) {
         if (prices.isEmpty()) {
             return 0;
         }
