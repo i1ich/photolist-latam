@@ -20,6 +20,7 @@ public class PhotolistApp {
 
         PhotolistStorageStack storageStack = new PhotolistStorageStack(app, "PhotolistStorageStack", props);
         new PhotolistApiStack(app, "PhotolistApiStack", props, storageStack);
+        new PhotolistFrontendStack(app, "PhotolistFrontendStack", props);
 
         app.synth();
     }
