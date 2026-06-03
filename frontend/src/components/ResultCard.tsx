@@ -4,28 +4,39 @@ interface Props {
   result: AnalyzeResult
 }
 
+const conditionLabel: Record<string, string> = {
+  new: 'nuevo',
+  used: 'usado',
+  not_specified: ''
+}
+
 export default function ResultCard({ result }: Props) {
-  const { itemName, category, priceRange, topListings } = result
+  const { item, market } = result
+  const hasPrices = market && market.priceMax > 0
 
   return (
     <div style={{ marginTop: '1.5rem', border: '1px solid #ddd', borderRadius: 8, padding: '1rem' }}>
-      <h2>{itemName}</h2>
-      <p style={{ color: '#666' }}>{category}</p>
+      <h2 style={{ marginBottom: 0 }}>{item.name}</h2>
+      <p style={{ color: '#666', marginTop: 4 }}>
+        {[item.brand, item.category].filter(Boolean).join(' · ')}
+      </p>
 
-      {priceRange && (
+      {hasPrices ? (
         <div style={{ background: '#fffbe6', padding: '0.75rem', borderRadius: 6, margin: '0.75rem 0' }}>
-          <strong>Rango de precios ({result.site})</strong>
+          <strong>Rango de precios ({market.site})</strong>
           <p>
-            {priceRange.currency} {priceRange.min.toLocaleString()} – {priceRange.max.toLocaleString()}
+            {market.currency} {market.priceMin.toLocaleString()} – {market.priceMax.toLocaleString()}
           </p>
-          <p>Mediana: {priceRange.currency} {priceRange.median.toLocaleString()}</p>
+          <p>Mediana: {market.currency} {market.priceMedian.toLocaleString()}</p>
         </div>
+      ) : (
+        <p style={{ color: '#999' }}>No se encontraron publicaciones en MercadoLibre ({market.site}).</p>
       )}
 
-      {topListings && topListings.length > 0 && (
+      {market.topListings && market.topListings.length > 0 && (
         <div>
           <h3>Top publicaciones</h3>
-          {topListings.map((listing, i) => (
+          {market.topListings.map((listing, i) => (
             <a
               key={i}
               href={listing.url}
@@ -39,7 +50,8 @@ export default function ResultCard({ result }: Props) {
               <div>
                 <p style={{ margin: 0, fontWeight: 500 }}>{listing.title}</p>
                 <p style={{ margin: 0, color: '#0075ca' }}>
-                  {listing.currency} {listing.price.toLocaleString()} · {listing.condition}
+                  {listing.currency} {listing.price.toLocaleString()}
+                  {conditionLabel[listing.condition] ? ` · ${conditionLabel[listing.condition]}` : ''}
                 </p>
               </div>
             </a>

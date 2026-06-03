@@ -31,10 +31,16 @@ Region: `sa-east-1` (São Paulo) — minimum latency for LATAM.
                      │           returns: top listings with prices
                      │
                      ├──►[DynamoDB: results-cache]
-                     │       └── cache by imageHash (TTL: 24h)
+                     │       └── cache by SHA-256(imageKey) (TTL: 7 days)
                      │
                      └──► AnalyzeResponse
+
+[Browser PWA] is served from:
+[S3: frontend bucket (private)] ──► [CloudFront (HTTPS, CDN)] ──► user
 ```
+
+The OpenAI API key lives in SSM Parameter Store (`/photolist/openai-api-key`,
+SecureString) and is created out-of-band so CloudFormation never stores the secret.
 
 ## AWS Resources
 
@@ -44,8 +50,10 @@ Region: `sa-east-1` (São Paulo) — minimum latency for LATAM.
 | DynamoDB | `photolist-results-cache` | Cache analysis results |
 | Lambda | `photolist-generate-upload-url` | Generate S3 pre-signed PUT URL |
 | Lambda | `photolist-analyze-photo` | Orchestrate Vision LLM + ML search |
-| API Gateway | `photolist-api` | REST API entry point |
-| CloudFront | — | CDN for frontend PWA |
+| API Gateway | `photolist-api` | REST API entry point (CORS enabled) |
+| S3 Bucket | frontend (private) | Built PWA assets |
+| CloudFront | frontend distribution | HTTPS CDN for the PWA |
+| SSM Parameter | `/photolist/openai-api-key` | OpenAI key (SecureString, created out-of-band) |
 
 ## Cost Estimate (MVP, 1000 req/day)
 

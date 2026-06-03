@@ -25,11 +25,11 @@ jobs:
 
       - name: Build functions
         run: |
-          cd functions/analyze-photo && mvn package -q
-          cd ../generate-upload-url && mvn package -q
+          ./mvnw -f functions/analyze-photo/pom.xml package -q
+          ./mvnw -f functions/generate-upload-url/pom.xml package -q
 
       - name: Build infrastructure
-        run: cd infrastructure && mvn package -q
+        run: ./mvnw -f infrastructure/pom.xml package -q
 
       - name: Deploy CDK
-        run: cd infrastructure && npx cdk deploy --all --require-approval never
+        run: cd infrastructure && npx --yes aws-cdk@2 deploy --all --require-approval never

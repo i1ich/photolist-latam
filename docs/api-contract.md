@@ -2,6 +2,9 @@
 
 Base URL: `https://{api-id}.execute-api.sa-east-1.amazonaws.com/prod`
 
+All responses include `Access-Control-Allow-Origin: *`, and the API Gateway answers
+CORS preflight (`OPTIONS`) for both routes.
+
 ---
 
 ## POST /upload-url
@@ -16,12 +19,17 @@ Generate a pre-signed S3 URL to upload a photo directly from the client.
 }
 ```
 
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contentType` | string | ✗ | One of `image/jpeg`, `image/png`, `image/webp`. Default: `image/jpeg` |
+
 ### Response `200 OK`
 
 ```json
 {
-  "uploadUrl": "https://s3.amazonaws.com/photolist-photo-uploads/uploads/{uuid}.jpg?...",
-  "imageKey": "uploads/{uuid}.jpg"
+  "uploadUrl": "https://{bucket}.s3.sa-east-1.amazonaws.com/uploads/{uuid}.jpg?X-Amz-...",
+  "imageKey": "uploads/{uuid}.jpg",
+  "expiresIn": 300
 }
 ```
 
@@ -31,11 +39,14 @@ Generate a pre-signed S3 URL to upload a photo directly from the client.
 # 1. Get upload URL
 curl -X POST /upload-url -d '{"contentType":"image/jpeg"}'
 
-# 2. Upload directly to S3
+# 2. Upload directly to S3 — the Content-Type MUST match the contentType above
 curl -X PUT "{uploadUrl}" \
   -H "Content-Type: image/jpeg" \
   --data-binary @photo.jpg
 ```
+
+> The `Content-Type` on the PUT must equal the `contentType` used to request the URL,
+> otherwise S3 rejects the upload with a signature mismatch (403).
 
 ---
 
@@ -61,39 +72,49 @@ Analyze the uploaded photo: identify the item and return MercadoLibre listings w
 
 ```json
 {
-  "itemName": "iPhone 13 128GB",
-  "category": "Smartphones y Accesorios",
-  "site": "MLA",
-  "priceRange": {
-    "min": 450000,
-    "max": 680000,
-    "median": 550000,
-    "currency": "ARS"
+  "item": {
+    "name": "iPhone 13 128GB",
+    "brand": "Apple",
+    "category": "Celulares y Smartphones",
+    "confidence": 0.92
   },
-  "topListings": [
-    {
-      "title": "Apple iPhone 13 (128 Gb) - Negro",
-      "price": 549999,
-      "currency": "ARS",
-      "condition": "used",
-      "url": "https://www.mercadolibre.com.ar/...",
-      "thumbnail": "https://http2.mlstatic.com/..."
-    }
-  ]
+  "market": {
+    "site": "MLA",
+    "currency": "ARS",
+    "priceMin": 450000,
+    "priceMax": 680000,
+    "priceMedian": 550000,
+    "topListings": [
+      {
+        "title": "Apple iPhone 13 (128 Gb) - Negro",
+        "price": 549999,
+        "currency": "ARS",
+        "condition": "used",
+        "url": "https://www.mercadolibre.com.ar/...",
+        "thumbnail": "https://http2.mlstatic.com/..."
+      }
+    ]
+  },
+  "analyzedAt": "2026-06-03T17:40:00Z",
+  "cachedAt": null
 }
 ```
+
+`cachedAt` is non-null when the result was served from the DynamoDB cache (keyed by the
+SHA-256 of `imageKey`, TTL 7 days).
 
 ### Error Responses
 
 | Status | Description |
 |--------|-------------|
-| `400` | Missing `imageKey` or invalid `site` |
-| `404` | Image not found in S3 |
-| `422` | Item could not be identified from image |
-| `500` | Internal error (Vision LLM or MercadoLibre unreachable) |
+| `400` | Missing `imageKey`, invalid JSON body, or unsupported `contentType` |
+| `422` | Item could not be identified from the image (vision confidence < 0.5) |
+| `502` | Upstream error (Vision LLM or MercadoLibre unreachable / rate-limited) |
+| `500` | Internal error |
 
 ---
 
 ## Rate Limits
 
-MVP: no rate limiting. To be added post-MVP via API Gateway usage plans.
+MVP: no application-level rate limiting. To be added post-MVP via API Gateway usage plans.
+MercadoLibre 429 responses surface to the client as `502`.

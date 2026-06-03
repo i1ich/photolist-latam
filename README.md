@@ -36,19 +36,33 @@ The first run downloads Maven 3.9.6 into `~/.m2/wrapper/dists/`; subsequent runs
 
 ### Infrastructure (CDK)
 
+The CDK app is the shaded `infrastructure` jar; `cdk.json` runs it via `java -jar`. The CDK CLI
+uses the `java` on your **PATH** (not `JAVA_HOME`), so make sure it's Java 21.
+
 ```powershell
 $env:JAVA_HOME = "C:\Users\<you>\.jdks\openjdk-21.0.2"
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 .\mvnw.cmd -f infrastructure/pom.xml package -q
-npx cdk deploy
+cd infrastructure
+npx --yes aws-cdk@2 deploy --all
 ```
+
+Stacks: `PhotolistStorageStack` (S3 + DynamoDB), `PhotolistApiStack` (Lambdas + API Gateway),
+`PhotolistFrontendStack` (S3 + CloudFront for the PWA).
 
 ### Frontend
 
 ```bash
 cd frontend
+cp .env.example .env.production   # set VITE_API_BASE_URL to your /prod API URL
 npm install
 npm run build
 ```
+
+## Deployment
+
+Full step-by-step (AWS account → live URL, all serverless, ~free tier):
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 ## CI/CD
 

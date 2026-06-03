@@ -111,7 +111,10 @@ public class MercadoLibreService {
                 AnalyzeResponse.MarketInfo.Listing listing = new AnalyzeResponse.MarketInfo.Listing();
                 listing.setTitle(item.path("title").asText(""));
                 listing.setPrice(price);
+                listing.setCurrency(item.path("currency_id").asText(""));
+                listing.setCondition(item.path("condition").asText(""));
                 listing.setUrl(item.path("permalink").asText(""));
+                listing.setThumbnail(item.path("thumbnail").asText(""));
                 allListings.add(listing);
             }
         }

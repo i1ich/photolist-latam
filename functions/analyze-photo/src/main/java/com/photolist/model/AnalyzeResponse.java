@@ -36,14 +36,23 @@ public class AnalyzeResponse {
         public static class Listing {
             private String title;
             private double price;
+            private String currency;
+            private String condition;
             private String url;
+            private String thumbnail;
 
             public String getTitle() { return title; }
             public void setTitle(String title) { this.title = title; }
             public double getPrice() { return price; }
             public void setPrice(double price) { this.price = price; }
+            public String getCurrency() { return currency; }
+            public void setCurrency(String currency) { this.currency = currency; }
+            public String getCondition() { return condition; }
+            public void setCondition(String condition) { this.condition = condition; }
             public String getUrl() { return url; }
             public void setUrl(String url) { this.url = url; }
+            public String getThumbnail() { return thumbnail; }
+            public void setThumbnail(String thumbnail) { this.thumbnail = thumbnail; }
         }
 
         public String getSite() { return site; }
