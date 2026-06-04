@@ -151,7 +151,7 @@ public class VisionService {
                         .build())) {
             return stream.readAllBytes();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read image from S3: " + imageKey, e);
+            throw new ServiceException("Failed to read image from S3: " + imageKey + " — " + e.getMessage());
         }
     }
 
@@ -190,13 +190,13 @@ public class VisionService {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("OpenAI API request failed", e);
+            throw new ServiceException("OpenAI API request failed: " + e.getMessage());
         } catch (IOException e) {
-            throw new RuntimeException("OpenAI API request failed", e);
+            throw new ServiceException("OpenAI API request failed: " + e.getMessage());
         }
 
         if (response.statusCode() != 200) {
-            throw new RuntimeException(
+            throw new ServiceException(
                     "OpenAI API error: HTTP " + response.statusCode() + " — " + response.body());
         }
 
@@ -204,11 +204,11 @@ public class VisionService {
             JsonNode root = MAPPER.readTree(response.body());
             JsonNode content = root.path("choices").path(0).path("message").path("content");
             if (content.isMissingNode() || content.asText().isBlank()) {
-                throw new RuntimeException("OpenAI response missing message content");
+                throw new ServiceException("OpenAI response missing message content");
             }
             return content.asText();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to parse OpenAI response", e);
+            throw new ServiceException("Failed to parse OpenAI response: " + e.getMessage());
         }
     }
 
