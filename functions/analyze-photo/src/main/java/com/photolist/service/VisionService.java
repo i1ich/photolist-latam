@@ -22,19 +22,24 @@ import java.util.Base64;
 import java.util.Locale;
 
 /**
- * Calls OpenAI GPT-4o mini vision to identify an item from a photo stored in S3.
+ * Calls OpenAI vision to identify an item from a photo stored in S3.
+ * Model and max-tokens are read from SSM at cold-start so they can be changed without redeployment.
  */
 public class VisionService {
 
     private static final String OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
     private static final double MIN_CONFIDENCE = 0.5;
+    private static final String DEFAULT_MODEL      = "gpt-4.1-nano";
+    private static final int    DEFAULT_MAX_TOKENS = 300;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    // Cached at cold-start; volatile ensures visibility across threads inside the same container.
     private static volatile String cachedApiKey;
+    private static volatile String cachedModel;
+    private static volatile int    cachedMaxTokens = -1;
 
-    private final String bucketName = System.getenv("BUCKET_NAME");
-    private final String model = System.getenv().getOrDefault("VISION_MODEL", "gpt-4o-mini");
-    private final S3Client s3Client = S3Client.create();
+    private final String    bucketName = System.getenv("BUCKET_NAME");
+    private final S3Client  s3Client   = S3Client.create();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -75,29 +80,63 @@ public class VisionService {
     }
 
     private static String getApiKey() {
-        if (cachedApiKey != null) {
-            return cachedApiKey;
-        }
+        if (cachedApiKey != null) return cachedApiKey;
         synchronized (VisionService.class) {
-            if (cachedApiKey != null) {
-                return cachedApiKey;
-            }
+            if (cachedApiKey != null) return cachedApiKey;
             String paramName = System.getenv("OPENAI_API_KEY_PARAM");
             if (paramName == null || paramName.isBlank()) {
-                throw new IllegalStateException("OPENAI_API_KEY_PARAM environment variable is not set");
+                throw new IllegalStateException("OPENAI_API_KEY_PARAM env var not set");
             }
             try (SsmClient ssm = SsmClient.create()) {
                 cachedApiKey = ssm.getParameter(GetParameterRequest.builder()
-                                .name(paramName)
-                                .withDecryption(true)
-                                .build())
-                        .parameter()
-                        .value();
+                                .name(paramName).withDecryption(true).build())
+                        .parameter().value();
             }
             if (cachedApiKey == null || cachedApiKey.isBlank()) {
-                throw new IllegalStateException("OpenAI API key parameter is empty: " + paramName);
+                throw new IllegalStateException("OpenAI API key SSM param is empty: " + paramName);
             }
             return cachedApiKey;
+        }
+    }
+
+    /** Reads model name from SSM; falls back to DEFAULT_MODEL if param is absent or blank. */
+    private static String getModel() {
+        if (cachedModel != null) return cachedModel;
+        synchronized (VisionService.class) {
+            if (cachedModel != null) return cachedModel;
+            String paramName = System.getenv("VISION_MODEL_PARAM");
+            cachedModel = readSsmString(paramName, DEFAULT_MODEL);
+            return cachedModel;
+        }
+    }
+
+    /** Reads max_tokens from SSM; falls back to DEFAULT_MAX_TOKENS if param is absent or blank. */
+    private static int getMaxTokens() {
+        if (cachedMaxTokens >= 0) return cachedMaxTokens;
+        synchronized (VisionService.class) {
+            if (cachedMaxTokens >= 0) return cachedMaxTokens;
+            String paramName = System.getenv("VISION_MAX_TOKENS_PARAM");
+            String raw = readSsmString(paramName, String.valueOf(DEFAULT_MAX_TOKENS));
+            try {
+                cachedMaxTokens = Integer.parseInt(raw.trim());
+            } catch (NumberFormatException e) {
+                cachedMaxTokens = DEFAULT_MAX_TOKENS;
+            }
+            return cachedMaxTokens;
+        }
+    }
+
+    /** Helper: reads a plain-String SSM parameter; returns {@code fallback} on any error. */
+    private static String readSsmString(String paramName, String fallback) {
+        if (paramName == null || paramName.isBlank()) return fallback;
+        try (SsmClient ssm = SsmClient.create()) {
+            String value = ssm.getParameter(GetParameterRequest.builder()
+                            .name(paramName).withDecryption(false).build())
+                    .parameter().value();
+            return (value == null || value.isBlank()) ? fallback : value;
+        } catch (Exception e) {
+            // Parameter may not exist yet during local testing — use default.
+            return fallback;
         }
     }
 
@@ -208,8 +247,8 @@ public class VisionService {
         responseFormat.put("type", "json_object");
 
         ObjectNode body = MAPPER.createObjectNode();
-        body.put("model", model);
-        body.put("max_tokens", 300);
+        body.put("model", getModel());
+        body.put("max_tokens", getMaxTokens());
         body.set("response_format", responseFormat);
         body.set("messages", messages);
 
