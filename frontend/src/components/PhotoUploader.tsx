@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 
 interface Props {
   onPhotoSelected: (file: File) => void
@@ -7,14 +7,38 @@ interface Props {
 
 export default function PhotoUploader({ onPhotoSelected, disabled }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) onPhotoSelected(file)
   }
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type.startsWith('image/')) onPhotoSelected(file)
+  }
+
   return (
-    <div>
+    <div
+      onClick={() => !disabled && inputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      style={{
+        backgroundColor: '#fff',
+        border: `2px dashed ${dragOver ? '#3483fa' : '#d4d4d4'}`,
+        borderRadius: 12,
+        padding: '48px 24px',
+        textAlign: 'center',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'border-color 0.2s, background 0.2s',
+        background: dragOver ? '#f0f6ff' : '#fff',
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
       <input
         ref={inputRef}
         type="file"
@@ -24,20 +48,38 @@ export default function PhotoUploader({ onPhotoSelected, disabled }: Props) {
         onChange={handleChange}
         disabled={disabled}
       />
+
+      <svg width="52" height="44" viewBox="0 0 52 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: 12 }}>
+        <rect x="1" y="9" width="50" height="34" rx="5" fill="#e8eef8" stroke="#3483fa" strokeWidth="2"/>
+        <circle cx="26" cy="26" r="9" fill="#fff" stroke="#3483fa" strokeWidth="2"/>
+        <circle cx="26" cy="26" r="5" fill="#3483fa"/>
+        <rect x="18" y="1" width="16" height="10" rx="3" fill="#e8eef8" stroke="#3483fa" strokeWidth="2"/>
+        <circle cx="42" cy="16" r="2.5" fill="#3483fa"/>
+      </svg>
+
+      <div style={{ fontWeight: 600, fontSize: 17, color: '#333', marginBottom: 6 }}>
+        Sacá una foto o subí una imagen
+      </div>
+      <div style={{ fontSize: 13, color: '#999', marginBottom: 24 }}>
+        JPG, PNG, HEIC — el AI identifica el artículo y busca el precio
+      </div>
+
       <button
-        onClick={() => inputRef.current?.click()}
         disabled={disabled}
         style={{
-          width: '100%',
-          padding: '1rem',
-          fontSize: '1.2rem',
-          backgroundColor: '#FFE600',
+          backgroundColor: '#3483fa',
+          color: '#fff',
           border: 'none',
           borderRadius: 8,
-          cursor: disabled ? 'not-allowed' : 'pointer'
+          padding: '12px 32px',
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          fontFamily: 'inherit',
         }}
+        onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
       >
-        📷 Tomar / Subir foto
+        Seleccionar foto
       </button>
     </div>
   )
