@@ -84,8 +84,6 @@ export default function ResultCard({ result }: Props) {
         }}>
           No se encontraron publicaciones en MercadoLibre ({market.site}).
         </div>
-      ) : (
-        <p style={{ color: '#999' }}>No se encontraron publicaciones en MercadoLibre ({market.site}).</p>
       )}
 
       {/* Listings */}
