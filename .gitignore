@@ -3,6 +3,7 @@ target/
 *.class
 *.jar
 !*-sources.jar
+dependency-reduced-pom.xml
 
 # CDK
 cdk.out/

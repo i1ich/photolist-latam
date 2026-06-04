@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$OpenAiApiKey,
 
-    [string]$Region = "us-east-1",
+    [string]$Region = "sa-east-1",
 
     # OpenAI model — can be changed here without redeploying Lambda
     [string]$VisionModel = "gpt-4.1-nano",
