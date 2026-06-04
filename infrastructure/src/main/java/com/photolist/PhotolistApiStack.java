@@ -20,6 +20,13 @@ public class PhotolistApiStack extends Stack {
      */
     private static final String OPENAI_API_KEY_PARAM = "/photolist/openai-api-key";
 
+    /**
+     * SSM parameters for model configuration (plain String, not secret).
+     * Created outside CDK so values can be changed without redeployment.
+     */
+    private static final String VISION_MODEL_PARAM     = "/photolist/vision-model";
+    private static final String VISION_MAX_TOKENS_PARAM = "/photolist/vision-max-tokens";
+
     public PhotolistApiStack(final Construct scope, final String id, final StackProps props,
                              final PhotolistStorageStack storageStack) {
         super(scope, id, props);
@@ -48,21 +55,29 @@ public class PhotolistApiStack extends Stack {
                 .memorySize(512)
                 .timeout(Duration.seconds(30))
                 .environment(Map.of(
-                        "BUCKET_NAME", storageStack.getPhotoUploadsBucket().getBucketName(),
-                        "TABLE_NAME", storageStack.getResultsCacheTable().getTableName(),
-                        "OPENAI_API_KEY_PARAM", OPENAI_API_KEY_PARAM
+                        "BUCKET_NAME",            storageStack.getPhotoUploadsBucket().getBucketName(),
+                        "TABLE_NAME",             storageStack.getResultsCacheTable().getTableName(),
+                        // Secrets (SecureString) — fetched at runtime via SSM SDK, never in plain env vars
+                        "OPENAI_API_KEY_PARAM",   OPENAI_API_KEY_PARAM,
+                        // Model config (String) — fetched at runtime so values are changeable without redeploy
+                        "VISION_MODEL_PARAM",     VISION_MODEL_PARAM,
+                        "VISION_MAX_TOKENS_PARAM", VISION_MAX_TOKENS_PARAM
                 ))
                 .build();
 
         storageStack.getPhotoUploadsBucket().grantRead(analyzePhotoFn);
         storageStack.getResultsCacheTable().grantReadWriteData(analyzePhotoFn);
 
-        // Allow the analyzer to read the externally-managed SecureString OpenAI key and decrypt it.
-        String paramArn = "arn:aws:ssm:" + getRegion() + ":" + getAccount()
-                + ":parameter" + OPENAI_API_KEY_PARAM;
+        // Allow the analyzer to read the externally-managed SecureString OpenAI key and decrypt it,
+        // plus the plain-String model config parameters.
+        String ssmBase = "arn:aws:ssm:" + getRegion() + ":" + getAccount() + ":parameter";
         analyzePhotoFn.addToRolePolicy(PolicyStatement.Builder.create()
                 .actions(List.of("ssm:GetParameter"))
-                .resources(List.of(paramArn))
+                .resources(List.of(
+                        ssmBase + OPENAI_API_KEY_PARAM,
+                        ssmBase + VISION_MODEL_PARAM,
+                        ssmBase + VISION_MAX_TOKENS_PARAM
+                ))
                 .build());
         analyzePhotoFn.addToRolePolicy(PolicyStatement.Builder.create()
                 .actions(List.of("kms:Decrypt"))
