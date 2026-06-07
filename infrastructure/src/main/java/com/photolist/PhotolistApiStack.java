@@ -24,8 +24,13 @@ public class PhotolistApiStack extends Stack {
      * SSM parameters for model configuration (plain String, not secret).
      * Created outside CDK so values can be changed without redeployment.
      */
-    private static final String VISION_MODEL_PARAM     = "/photolist/vision-model";
+    private static final String VISION_MODEL_PARAM      = "/photolist/vision-model";
     private static final String VISION_MAX_TOKENS_PARAM = "/photolist/vision-max-tokens";
+
+    // MercadoLibre OAuth credentials — all created outside CDK
+    private static final String ML_CLIENT_ID_PARAM     = "/photolist/ml/client_id";
+    private static final String ML_CLIENT_SECRET_PARAM = "/photolist/ml/client_secret";
+    private static final String ML_REFRESH_TOKEN_PARAM = "/photolist/ml/refresh_token";
 
     public PhotolistApiStack(final Construct scope, final String id, final StackProps props,
                              final PhotolistStorageStack storageStack) {
@@ -61,7 +66,9 @@ public class PhotolistApiStack extends Stack {
                         "OPENAI_API_KEY_PARAM",   OPENAI_API_KEY_PARAM,
                         // Model config (String) — fetched at runtime so values are changeable without redeploy
                         "VISION_MODEL_PARAM",     VISION_MODEL_PARAM,
-                        "VISION_MAX_TOKENS_PARAM", VISION_MAX_TOKENS_PARAM
+                        "VISION_MAX_TOKENS_PARAM", VISION_MAX_TOKENS_PARAM,
+                        // MercadoLibre OAuth — SSM param names only, secrets fetched at runtime
+                        "ML_SITE",               "MLA"
                 ))
                 .build();
 
@@ -76,11 +83,19 @@ public class PhotolistApiStack extends Stack {
                 .resources(List.of(
                         ssmBase + OPENAI_API_KEY_PARAM,
                         ssmBase + VISION_MODEL_PARAM,
-                        ssmBase + VISION_MAX_TOKENS_PARAM
+                        ssmBase + VISION_MAX_TOKENS_PARAM,
+                        ssmBase + ML_CLIENT_ID_PARAM,
+                        ssmBase + ML_CLIENT_SECRET_PARAM,
+                        ssmBase + ML_REFRESH_TOKEN_PARAM
                 ))
                 .build());
+        // refresh_token rotates on every ML API call — Lambda must write the new one back
         analyzePhotoFn.addToRolePolicy(PolicyStatement.Builder.create()
-                .actions(List.of("kms:Decrypt"))
+                .actions(List.of("ssm:PutParameter"))
+                .resources(List.of(ssmBase + ML_REFRESH_TOKEN_PARAM))
+                .build());
+        analyzePhotoFn.addToRolePolicy(PolicyStatement.Builder.create()
+                .actions(List.of("kms:Decrypt", "kms:GenerateDataKey"))
                 .resources(List.of("arn:aws:kms:" + getRegion() + ":" + getAccount() + ":alias/aws/ssm"))
                 .build());
 
