@@ -68,7 +68,7 @@ public class PhotolistApiStack extends Stack {
                         "VISION_MODEL_PARAM",     VISION_MODEL_PARAM,
                         "VISION_MAX_TOKENS_PARAM", VISION_MAX_TOKENS_PARAM,
                         // MercadoLibre OAuth — SSM param names only, secrets fetched at runtime
-                        "ML_SITE",               "MLA"
+                        "ML_SITE",               "MLU"
                 ))
                 .build();
 

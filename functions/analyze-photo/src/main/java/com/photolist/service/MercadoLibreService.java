@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photolist.model.AnalyzeResponse;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.GetParameterRequest;
-import software.amazon.awssdk.services.ssm.model.PutParameterRequest;
-import software.amazon.awssdk.services.ssm.model.ParameterType;
 
 import java.io.IOException;
 import java.net.URI;
@@ -36,9 +34,12 @@ public class MercadoLibreService {
     private static final int    TOP_LISTINGS      = 3;
 
     // SSM parameter names — must match setup-ssm-params.ps1
-    private static final String PARAM_CLIENT_ID      = "/photolist/ml/client_id";
-    private static final String PARAM_CLIENT_SECRET  = "/photolist/ml/client_secret";
-    private static final String PARAM_REFRESH_TOKEN  = "/photolist/ml/refresh_token";
+    private static final String PARAM_CLIENT_ID     = "/photolist/ml/client_id";
+    private static final String PARAM_CLIENT_SECRET = "/photolist/ml/client_secret";
+
+    // Cached app token (client_credentials grant — no user needed for public search)
+    private static volatile String cachedAccessToken;
+    private static volatile long   cachedTokenExpiryMs = 0;
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -51,11 +52,18 @@ public class MercadoLibreService {
     // ── Token refresh ────────────────────────────────────────────────────────────
 
     /**
-     * Fetches a fresh access_token using the stored refresh_token, then rotates
-     * the refresh_token in SSM (ML invalidates the old one immediately).
+     * Returns a valid ML access_token via client_credentials grant.
+     * The token is cached in-memory for 5 hours (token lifetime is 6 hours).
+     * No SSM writes needed — no rotation complexity.
      */
     private String fetchAccessToken() {
-        String clientId, clientSecret, refreshToken;
+        // Return cached token if still valid (with 1-hour safety buffer)
+        long nowMs = System.currentTimeMillis();
+        if (cachedAccessToken != null && nowMs < cachedTokenExpiryMs) {
+            return cachedAccessToken;
+        }
+
+        String clientId, clientSecret;
         try (SsmClient ssm = SsmClient.create()) {
             clientId = ssm.getParameter(GetParameterRequest.builder()
                     .name(PARAM_CLIENT_ID).withDecryption(false).build())
@@ -63,15 +71,11 @@ public class MercadoLibreService {
             clientSecret = ssm.getParameter(GetParameterRequest.builder()
                     .name(PARAM_CLIENT_SECRET).withDecryption(true).build())
                     .parameter().value();
-            refreshToken = ssm.getParameter(GetParameterRequest.builder()
-                    .name(PARAM_REFRESH_TOKEN).withDecryption(true).build())
-                    .parameter().value();
         }
 
-        String body = "grant_type=refresh_token"
+        String body = "grant_type=client_credentials"
                 + "&client_id="     + URLEncoder.encode(clientId,     StandardCharsets.UTF_8)
-                + "&client_secret=" + URLEncoder.encode(clientSecret, StandardCharsets.UTF_8)
-                + "&refresh_token=" + URLEncoder.encode(refreshToken, StandardCharsets.UTF_8);
+                + "&client_secret=" + URLEncoder.encode(clientSecret, StandardCharsets.UTF_8);
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(TOKEN_URL))
@@ -85,13 +89,13 @@ public class MercadoLibreService {
             resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ServiceException("ML token refresh interrupted", e);
+            throw new ServiceException("ML token fetch interrupted", e);
         } catch (IOException e) {
-            throw new ServiceException("ML token refresh failed", e);
+            throw new ServiceException("ML token fetch failed", e);
         }
 
         if (resp.statusCode() != 200) {
-            throw new ServiceException("ML token refresh HTTP " + resp.statusCode() + ": " + resp.body());
+            throw new ServiceException("ML token fetch HTTP " + resp.statusCode() + ": " + resp.body());
         }
 
         JsonNode json;
@@ -101,24 +105,15 @@ public class MercadoLibreService {
             throw new ServiceException("Failed to parse ML token response", e);
         }
 
-        String newRefreshToken = json.path("refresh_token").asText(null);
-        String accessToken     = json.path("access_token").asText(null);
-
+        String accessToken = json.path("access_token").asText(null);
         if (accessToken == null || accessToken.isBlank()) {
             throw new ServiceException("ML token response missing access_token");
         }
 
-        // Rotate refresh_token in SSM (ML single-use tokens — old one is already invalid)
-        if (newRefreshToken != null && !newRefreshToken.isBlank()) {
-            try (SsmClient ssm = SsmClient.create()) {
-                ssm.putParameter(PutParameterRequest.builder()
-                        .name(PARAM_REFRESH_TOKEN)
-                        .value(newRefreshToken)
-                        .type(ParameterType.SECURE_STRING)
-                        .overwrite(true)
-                        .build());
-            }
-        }
+        long expiresIn = json.path("expires_in").asLong(21600); // default 6 hours
+        // Cache for (expiresIn - 3600) seconds to refresh 1 hour before expiry
+        cachedAccessToken    = accessToken;
+        cachedTokenExpiryMs  = nowMs + (expiresIn - 3600) * 1000L;
 
         return accessToken;
     }

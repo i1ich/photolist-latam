@@ -74,6 +74,8 @@ public class AnalyzePhotoHandler implements
         } catch (IllegalArgumentException e) {
             return jsonResponse(400, Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            System.err.println("Unexpected error [" + e.getClass().getName() + "]: " + e.getMessage());
+            e.printStackTrace(System.err);
             return jsonResponse(500, Map.of("error", "Internal server error"));
         }
     }
