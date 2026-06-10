@@ -24,6 +24,7 @@ export interface MarketInfo {
   priceMax: number
   priceMedian: number
   topListings: Listing[]
+  searchUrl?: string
 }
 
 export interface AnalyzeResult {
@@ -37,16 +38,13 @@ const MOCK_RESULTS: AnalyzeResult[] = [
   {
     item: { name: 'iPhone 13 128GB', brand: 'Apple', category: 'Celulares', confidence: 0.94 },
     market: {
-      site: 'MLA',
-      currency: 'ARS',
-      priceMin: 450000,
-      priceMax: 620000,
-      priceMedian: 530000,
-      topListings: [
-        { title: 'Apple iPhone 13 128 GB Negro', price: 529999, currency: 'ARS', condition: 'used', url: 'https://www.mercadolibre.com.ar/p/MLA1234', thumbnail: 'https://http2.mlstatic.com/D_NQ_NP_placeholder.jpg' },
-        { title: 'iPhone 13 128gb Liberado', price: 489000, currency: 'ARS', condition: 'used', url: 'https://www.mercadolibre.com.ar/p/MLA5678' },
-        { title: 'iPhone 13 Como Nuevo 128gb', price: 615000, currency: 'ARS', condition: 'used', url: 'https://www.mercadolibre.com.ar/p/MLA9012' },
-      ]
+      site: 'MLU',
+      currency: '',
+      priceMin: 0,
+      priceMax: 0,
+      priceMedian: 0,
+      topListings: [],
+      searchUrl: 'https://listado.mercadolibre.com.uy/iphone-13-128gb',
     },
     analyzedAt: new Date().toISOString(),
     cachedAt: null
@@ -54,15 +52,13 @@ const MOCK_RESULTS: AnalyzeResult[] = [
   {
     item: { name: 'Samsung Galaxy S22', brand: 'Samsung', category: 'Celulares', confidence: 0.87 },
     market: {
-      site: 'MLA',
-      currency: 'ARS',
-      priceMin: 280000,
-      priceMax: 390000,
-      priceMedian: 330000,
-      topListings: [
-        { title: 'Samsung Galaxy S22 128gb', price: 329999, currency: 'ARS', condition: 'used', url: 'https://www.mercadolibre.com.ar/p/MLA2222' },
-        { title: 'Samsung S22 Liberado', price: 289000, currency: 'ARS', condition: 'used', url: 'https://www.mercadolibre.com.ar/p/MLA3333' },
-      ]
+      site: 'MLU',
+      currency: '',
+      priceMin: 0,
+      priceMax: 0,
+      priceMedian: 0,
+      topListings: [],
+      searchUrl: 'https://listado.mercadolibre.com.uy/samsung-galaxy-s22',
     },
     analyzedAt: new Date().toISOString(),
     cachedAt: new Date(Date.now() - 3600_000).toISOString()
@@ -70,15 +66,13 @@ const MOCK_RESULTS: AnalyzeResult[] = [
   {
     item: { name: 'Zapatillas Nike Air Max 90', brand: 'Nike', category: 'Ropa y Calzado', confidence: 0.78 },
     market: {
-      site: 'MLA',
-      currency: 'ARS',
-      priceMin: 85000,
-      priceMax: 140000,
-      priceMedian: 108000,
-      topListings: [
-        { title: 'Nike Air Max 90 Talle 42', price: 110000, currency: 'ARS', condition: 'new', url: 'https://www.mercadolibre.com.ar/p/MLA4444' },
-        { title: 'Air Max 90 Original', price: 89000, currency: 'ARS', condition: 'used', url: 'https://www.mercadolibre.com.ar/p/MLA5555' },
-      ]
+      site: 'MLU',
+      currency: '',
+      priceMin: 0,
+      priceMax: 0,
+      priceMedian: 0,
+      topListings: [],
+      searchUrl: 'https://listado.mercadolibre.com.uy/zapatillas-nike-air-max-90',
     },
     analyzedAt: new Date().toISOString(),
     cachedAt: null

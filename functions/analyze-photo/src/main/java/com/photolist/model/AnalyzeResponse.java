@@ -32,6 +32,7 @@ public class AnalyzeResponse {
         private double priceMax;
         private double priceMedian;
         private List<Listing> topListings;
+        private String searchUrl;
 
         public static class Listing {
             private String title;
@@ -67,6 +68,8 @@ public class AnalyzeResponse {
         public void setPriceMedian(double priceMedian) { this.priceMedian = priceMedian; }
         public List<Listing> getTopListings() { return topListings; }
         public void setTopListings(List<Listing> topListings) { this.topListings = topListings; }
+        public String getSearchUrl() { return searchUrl; }
+        public void setSearchUrl(String searchUrl) { this.searchUrl = searchUrl; }
     }
 
     public ItemInfo getItem() { return item; }
