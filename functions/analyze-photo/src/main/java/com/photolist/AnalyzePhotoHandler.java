@@ -57,7 +57,7 @@ public class AnalyzePhotoHandler implements
             }
 
             String site = request.getSite();
-            AnalyzeResponse.MarketInfo market = mlService.search(identified.getSearchQuery(), site);
+            AnalyzeResponse.MarketInfo market = mlService.buildSearchLink(identified.getSearchQuery(), site);
 
             String analyzedAt = Instant.now().toString();
             AnalyzeResponse response = new AnalyzeResponse();

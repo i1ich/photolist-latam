@@ -46,7 +46,7 @@ export default function ResultCard({ result }: Props) {
         </div>
       </div>
 
-      {/* Price range card */}
+      {/* Price range card or deep-link CTA */}
       {hasPrices ? (
         <div style={{
           backgroundColor: '#fff',
@@ -77,6 +77,36 @@ export default function ResultCard({ result }: Props) {
             </div>
           </div>
         </div>
+      ) : market.searchUrl ? (
+        <a
+          href={market.searchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: '#fff200',
+            borderRadius: 12,
+            padding: '18px 24px',
+            marginBottom: 12,
+            textDecoration: 'none',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            transition: 'box-shadow 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.15)')}
+          onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)')}
+        >
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#222', marginBottom: 2 }}>
+              Ver precios en MercadoLibre
+            </div>
+            <div style={{ fontSize: 12, color: '#555' }}>
+              Búsqueda en {market.site} · abre en nueva pestaña
+            </div>
+          </div>
+          <span style={{ fontSize: 24, color: '#222', flexShrink: 0 }}>›</span>
+        </a>
       ) : (
         <div style={{
           backgroundColor: '#fff', borderRadius: 12, padding: '20px 24px',
