@@ -3,6 +3,10 @@ package com.photolist.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photolist.model.AnalyzeResponse;
+import software.amazon.awssdk.services.ssm.SsmClient;
+import software.amazon.awssdk.services.ssm.model.GetParameterRequest;
+import software.amazon.awssdk.services.ssm.model.ParameterType;
+import software.amazon.awssdk.services.ssm.model.PutParameterRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -18,13 +22,26 @@ import java.util.List;
 
 /**
  * Queries MercadoLibre Search API for listings matching the identified item.
- * Starts with MLA (Argentina), expandable to MLB, MLM, MLU.
+ * Authentication uses OAuth 2.0 refresh_token flow:
+ *   1. Read refresh_token from SSM (/photolist/ml/refresh_token)
+ *   2. Exchange for access_token + new refresh_token via /oauth/token
+ *   3. Write new refresh_token back to SSM (ML tokens rotate on every use)
+ *   4. Add Authorization: Bearer header to search request
+ *
+ * Note: client_credentials tokens return 403 on MLU search — user-context
+ * tokens (from refresh_token grant) are required.
  */
 public class MercadoLibreService {
 
-    private static final String BASE_URL = "https://api.mercadolibre.com";
-    private static final int SEARCH_LIMIT = 10;
-    private static final int TOP_LISTINGS = 3;
+    private static final String BASE_URL          = "https://api.mercadolibre.com";
+    private static final String TOKEN_URL         = "https://api.mercadolibre.com/oauth/token";
+    private static final int    SEARCH_LIMIT      = 10;
+    private static final int    TOP_LISTINGS      = 3;
+
+    // SSM parameter names — must match setup-ssm-params.ps1
+    private static final String PARAM_CLIENT_ID     = "/photolist/ml/client_id";
+    private static final String PARAM_CLIENT_SECRET = "/photolist/ml/client_secret";
+    private static final String PARAM_REFRESH_TOKEN = "/photolist/ml/refresh_token";
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -32,7 +49,102 @@ public class MercadoLibreService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final String defaultSite = System.getenv().getOrDefault("ML_SITE", "MLA");
+    private final String defaultSite = System.getenv().getOrDefault("ML_SITE", "MLU");
+
+    // ── Token cache (per Lambda container, avoids rotation on every request) ─────
+    private static volatile String cachedToken;
+    private static volatile java.time.Instant tokenExpiry = java.time.Instant.EPOCH;
+
+    private synchronized String getAccessToken() {
+        if (cachedToken != null && java.time.Instant.now().isBefore(tokenExpiry)) {
+            return cachedToken;
+        }
+        cachedToken = fetchAccessToken();
+        // expires_in is typically 21600 (6 h); refresh 5 min early
+        tokenExpiry = java.time.Instant.now().plusSeconds(21600 - 300);
+        return cachedToken;
+    }
+
+    // ── Token refresh ────────────────────────────────────────────────────────────
+
+    /**
+     * Returns a valid ML access_token via refresh_token grant.
+     * Rotates the refresh_token in SSM after each use (ML tokens are single-use).
+     * SSM write failures are logged but do not prevent the current request from succeeding.
+     */
+    private String fetchAccessToken() {
+        String clientId, clientSecret, refreshToken;
+        try (SsmClient ssm = SsmClient.create()) {
+            clientId = ssm.getParameter(GetParameterRequest.builder()
+                    .name(PARAM_CLIENT_ID).withDecryption(false).build())
+                    .parameter().value();
+            clientSecret = ssm.getParameter(GetParameterRequest.builder()
+                    .name(PARAM_CLIENT_SECRET).withDecryption(true).build())
+                    .parameter().value();
+            refreshToken = ssm.getParameter(GetParameterRequest.builder()
+                    .name(PARAM_REFRESH_TOKEN).withDecryption(true).build())
+                    .parameter().value();
+        }
+
+        String body = "grant_type=refresh_token"
+                + "&client_id="     + URLEncoder.encode(clientId,     StandardCharsets.UTF_8)
+                + "&client_secret=" + URLEncoder.encode(clientSecret, StandardCharsets.UTF_8)
+                + "&refresh_token=" + URLEncoder.encode(refreshToken, StandardCharsets.UTF_8);
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(TOKEN_URL))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        HttpResponse<String> resp;
+        try {
+            resp = HTTP_CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ServiceException("ML token fetch interrupted", e);
+        } catch (IOException e) {
+            throw new ServiceException("ML token fetch failed", e);
+        }
+
+        if (resp.statusCode() != 200) {
+            throw new ServiceException("ML token refresh HTTP " + resp.statusCode() + ": " + resp.body());
+        }
+
+        JsonNode json;
+        try {
+            json = MAPPER.readTree(resp.body());
+        } catch (IOException e) {
+            throw new ServiceException("Failed to parse ML token response", e);
+        }
+
+        String accessToken = json.path("access_token").asText(null);
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new ServiceException("ML token response missing access_token");
+        }
+
+        // Rotate refresh_token in SSM — ML tokens are single-use
+        String newRefreshToken = json.path("refresh_token").asText(null);
+        if (newRefreshToken != null && !newRefreshToken.isBlank()) {
+            try (SsmClient ssm = SsmClient.create()) {
+                ssm.putParameter(PutParameterRequest.builder()
+                        .name(PARAM_REFRESH_TOKEN)
+                        .value(newRefreshToken)
+                        .type(ParameterType.SECURE_STRING)
+                        .overwrite(true)
+                        .build());
+            } catch (Exception e) {
+                // Log but don't fail — access_token is still valid for this request.
+                // The next invocation will fail if SSM isn't updated, but this one succeeds.
+                System.err.println("Warning: failed to rotate ML refresh_token in SSM: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }
+
+        return accessToken;
+    }
+
+    // ── Search ───────────────────────────────────────────────────────────────────
 
     /**
      * Search MercadoLibre for listings matching the query.
@@ -42,13 +154,15 @@ public class MercadoLibreService {
      * @return market data with price stats and top listings
      */
     public AnalyzeResponse.MarketInfo search(String searchQuery, String site) {
-        String resolvedSite = resolveSite(site);
-        String encodedQuery = URLEncoder.encode(searchQuery, StandardCharsets.UTF_8);
-        String url = BASE_URL + "/sites/" + resolvedSite + "/search?q=" + encodedQuery + "&limit=" + SEARCH_LIMIT;
+        String resolvedSite  = resolveSite(site);
+        String accessToken   = getAccessToken();
+        String encodedQuery  = URLEncoder.encode(searchQuery, StandardCharsets.UTF_8);
+        String url           = BASE_URL + "/sites/" + resolvedSite + "/search?q=" + encodedQuery + "&limit=" + SEARCH_LIMIT;
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + accessToken)
                 .GET()
                 .build();
 
@@ -63,6 +177,9 @@ public class MercadoLibreService {
         }
 
         int status = response.statusCode();
+        if (status == 401 || status == 403) {
+            throw new ServiceException("MercadoLibre auth error: HTTP " + status + " — check SSM credentials");
+        }
         if (status == 429) {
             throw new ServiceException("MercadoLibre rate limited (429); retry after a few seconds");
         }

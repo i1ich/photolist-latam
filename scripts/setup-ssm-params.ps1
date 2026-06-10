@@ -8,6 +8,15 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$OpenAiApiKey,
 
+    [Parameter(Mandatory=$true)]
+    [string]$MlClientId,
+
+    [Parameter(Mandatory=$true)]
+    [string]$MlClientSecret,
+
+    [Parameter(Mandatory=$true)]
+    [string]$MlRefreshToken,
+
     [string]$Region = "sa-east-1",
 
     # OpenAI model — can be changed here without redeploying Lambda
@@ -56,6 +65,42 @@ aws ssm put-parameter `
     --overwrite `
     --description "max_tokens sent to OpenAI by photolist-latam vision Lambda"
 if ($LASTEXITCODE -ne 0) { throw "Failed to write vision-max-tokens" }
+Write-Host "    OK"
+
+# ── 4. MercadoLibre client_id (String, not secret) ───────────────────────────
+Write-Host "4/6  /photolist/ml/client_id  [String]"
+aws ssm put-parameter `
+    --region $Region `
+    --name   "/photolist/ml/client_id" `
+    --value  $MlClientId `
+    --type   "String" `
+    --overwrite `
+    --description "MercadoLibre OAuth app client_id"
+if ($LASTEXITCODE -ne 0) { throw "Failed to write ml/client_id" }
+Write-Host "    OK"
+
+# ── 5. MercadoLibre client_secret (SecureString) ─────────────────────────────
+Write-Host "5/6  /photolist/ml/client_secret  [SecureString]"
+aws ssm put-parameter `
+    --region $Region `
+    --name   "/photolist/ml/client_secret" `
+    --value  $MlClientSecret `
+    --type   "SecureString" `
+    --overwrite `
+    --description "MercadoLibre OAuth app client_secret"
+if ($LASTEXITCODE -ne 0) { throw "Failed to write ml/client_secret" }
+Write-Host "    OK"
+
+# ── 6. MercadoLibre refresh_token (SecureString, rotates on every API call) ──
+Write-Host "6/6  /photolist/ml/refresh_token  [SecureString]"
+aws ssm put-parameter `
+    --region $Region `
+    --name   "/photolist/ml/refresh_token" `
+    --value  $MlRefreshToken `
+    --type   "SecureString" `
+    --overwrite `
+    --description "MercadoLibre OAuth refresh_token (rotated by Lambda on every use)"
+if ($LASTEXITCODE -ne 0) { throw "Failed to write ml/refresh_token" }
 Write-Host "    OK"
 
 Write-Host ""
