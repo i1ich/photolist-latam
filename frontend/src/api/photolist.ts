@@ -126,4 +126,5 @@ export async function analyzePhoto(file: File, site?: string): Promise<AnalyzeRe
 
   if (analyzeRes.status === 422) throw new Error('No se pudo identificar el artículo en la foto')
   if (!analyzeRes.ok) throw new Error('No se pudo analizar la imagen')
-  return
+  return analyzeRes.json()
+}

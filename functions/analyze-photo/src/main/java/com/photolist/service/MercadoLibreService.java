@@ -240,4 +240,22 @@ public class MercadoLibreService {
         market.setSite(site);
         market.setCurrency(currency != null ? currency : "");
         market.setPriceMin(prices.isEmpty() ? 0 : Collections.min(prices));
-        market.setPriceMax
+        market.setPriceMax(prices.isEmpty() ? 0 : Collections.max(prices));
+        market.setPriceMedian(computeMedian(prices));
+        market.setTopListings(allListings.subList(0, Math.min(TOP_LISTINGS, allListings.size())));
+        return market;
+    }
+
+    static double computeMedian(List<Double> prices) {
+        if (prices.isEmpty()) {
+            return 0;
+        }
+        List<Double> sorted = new ArrayList<>(prices);
+        Collections.sort(sorted);
+        int n = sorted.size();
+        if (n % 2 == 1) {
+            return sorted.get(n / 2);
+        }
+        return (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
+    }
+}

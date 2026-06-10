@@ -53,4 +53,4 @@ aws cloudfront create-invalidation `
   --paths "/*"
 
 Write-Host ""
-Write-Host "Done
+Write-Host "Done! Site: $SiteUrl"
