@@ -43,7 +43,7 @@ Pop-Location
 # ── Sync to S3 ────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "Syncing to S3..."
-aws s3 sync "frontend\dist" "s3://$Bucket/" --delete --region $Region
+aws s3 sync "$PSScriptRoot\..\frontend\dist" "s3://$Bucket/" --delete --region $Region
 
 # ── Invalidate CloudFront cache ───────────────────────────────────────────────
 Write-Host ""
@@ -53,4 +53,4 @@ aws cloudfront create-invalidation `
   --paths "/*"
 
 Write-Host ""
-Write-Host "Done! Site: $SiteUrl"
+Write-Host "Done

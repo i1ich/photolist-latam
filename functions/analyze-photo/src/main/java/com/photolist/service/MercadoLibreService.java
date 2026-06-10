@@ -51,6 +51,20 @@ public class MercadoLibreService {
 
     private final String defaultSite = System.getenv().getOrDefault("ML_SITE", "MLU");
 
+    // ── Token cache (per Lambda container, avoids rotation on every request) ─────
+    private static volatile String cachedToken;
+    private static volatile java.time.Instant tokenExpiry = java.time.Instant.EPOCH;
+
+    private synchronized String getAccessToken() {
+        if (cachedToken != null && java.time.Instant.now().isBefore(tokenExpiry)) {
+            return cachedToken;
+        }
+        cachedToken = fetchAccessToken();
+        // expires_in is typically 21600 (6 h); refresh 5 min early
+        tokenExpiry = java.time.Instant.now().plusSeconds(21600 - 300);
+        return cachedToken;
+    }
+
     // ── Token refresh ────────────────────────────────────────────────────────────
 
     /**
@@ -141,7 +155,7 @@ public class MercadoLibreService {
      */
     public AnalyzeResponse.MarketInfo search(String searchQuery, String site) {
         String resolvedSite  = resolveSite(site);
-        String accessToken   = fetchAccessToken();
+        String accessToken   = getAccessToken();
         String encodedQuery  = URLEncoder.encode(searchQuery, StandardCharsets.UTF_8);
         String url           = BASE_URL + "/sites/" + resolvedSite + "/search?q=" + encodedQuery + "&limit=" + SEARCH_LIMIT;
 
@@ -226,22 +240,4 @@ public class MercadoLibreService {
         market.setSite(site);
         market.setCurrency(currency != null ? currency : "");
         market.setPriceMin(prices.isEmpty() ? 0 : Collections.min(prices));
-        market.setPriceMax(prices.isEmpty() ? 0 : Collections.max(prices));
-        market.setPriceMedian(computeMedian(prices));
-        market.setTopListings(allListings.subList(0, Math.min(TOP_LISTINGS, allListings.size())));
-        return market;
-    }
-
-    static double computeMedian(List<Double> prices) {
-        if (prices.isEmpty()) {
-            return 0;
-        }
-        List<Double> sorted = new ArrayList<>(prices);
-        Collections.sort(sorted);
-        int n = sorted.size();
-        if (n % 2 == 1) {
-            return sorted.get(n / 2);
-        }
-        return (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
-    }
-}
+        market.setPriceMax

@@ -94,7 +94,7 @@ async function analyzePhotoMock(_file: File): Promise<AnalyzeResult> {
   return result
 }
 
-export async function analyzePhoto(file: File, site = 'MLA'): Promise<AnalyzeResult> {
+export async function analyzePhoto(file: File, site?: string): Promise<AnalyzeResult> {
   if (IS_MOCK) return analyzePhotoMock(file)
   const contentType = file.type || 'image/jpeg'
 
@@ -121,10 +121,9 @@ export async function analyzePhoto(file: File, site = 'MLA'): Promise<AnalyzeRes
   const analyzeRes = await fetch(`${API_BASE}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageKey, site })
+    body: JSON.stringify(site ? { imageKey, site } : { imageKey })
   })
 
   if (analyzeRes.status === 422) throw new Error('No se pudo identificar el artículo en la foto')
   if (!analyzeRes.ok) throw new Error('No se pudo analizar la imagen')
-  return analyzeRes.json()
-}
+  return
