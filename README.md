@@ -25,21 +25,7 @@ Spanish-language UI, LATAM-first (MLU 🇺🇾 / MLA 🇦🇷 / MLB 🇧🇷 / M
 
 Fully serverless — no always-on servers, ~$0/month on the AWS free tier at MVP traffic. The only meaningful cost is the Vision LLM (~$5–15/month per 1,000 photos).
 
-```mermaid
-flowchart TD
-    USER([📱 User · PWA]) --> CF[CloudFront + S3<br/>static frontend]
-    USER -->|POST /upload-url| APIGW[API Gateway]
-    USER -->|POST /analyze| APIGW
-    APIGW --> L1[λ generate-upload-url<br/>Java 21]
-    APIGW --> L2[λ analyze-photo<br/>Java 21]
-    L1 -.presigned URL.-> USER
-    USER -->|PUT image| S3[(S3 uploads<br/>24h lifecycle)]
-    L2 --> DDB[(DynamoDB<br/>results cache)]
-    L2 --> S3
-    L2 --> LLM[OpenAI Vision<br/>structured output]
-    L2 --> ML[MercadoLibre<br/>search deep-link]
-    SSM[[SSM Parameter Store<br/>secrets & model config]] -.-> L2
-```
+![schema-latam.svg](docs/schema-latam-photolist.svg)
 
 **Key engineering decisions:**
 
