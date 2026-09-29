@@ -108,6 +108,7 @@ SHA-256 of `imageKey`, TTL 7 days).
 | Status | Description |
 |--------|-------------|
 | `400` | Missing `imageKey`, invalid JSON body, or unsupported `contentType` |
+| `404` | No uploaded image exists for `imageKey` (`/analyze`) |
 | `422` | Item could not be identified from the image (vision confidence < 0.5) |
 | `502` | Upstream error (Vision LLM or MercadoLibre unreachable / rate-limited) |
 | `500` | Internal error |

@@ -5,10 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.photolist.model.AnalyzeResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.GetParameterRequest;
 
@@ -27,6 +30,7 @@ import java.util.Locale;
  */
 public class VisionService {
 
+    private static final Logger log = LoggerFactory.getLogger(VisionService.class);
     private static final String OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
     private static final double MIN_CONFIDENCE = 0.5;
     private static final String DEFAULT_MODEL      = "gpt-4.1-nano";
@@ -120,6 +124,8 @@ public class VisionService {
             try {
                 cachedMaxTokens = Integer.parseInt(raw.trim());
             } catch (NumberFormatException e) {
+                log.warn("Invalid max_tokens value '{}' in SSM param {}, using default {}",
+                        raw, paramName, DEFAULT_MAX_TOKENS);
                 cachedMaxTokens = DEFAULT_MAX_TOKENS;
             }
             return cachedMaxTokens;
@@ -136,6 +142,7 @@ public class VisionService {
             return (value == null || value.isBlank()) ? fallback : value;
         } catch (Exception e) {
             // Parameter may not exist yet during local testing — use default.
+            log.warn("Failed to read SSM param {}, using default '{}': {}", paramName, fallback, e.toString());
             return fallback;
         }
     }
@@ -150,6 +157,8 @@ public class VisionService {
                         .key(imageKey)
                         .build())) {
             return stream.readAllBytes();
+        } catch (NoSuchKeyException e) {
+            throw new ImageNotFoundException("Image not found: " + imageKey);
         } catch (IOException e) {
             throw new ServiceException("Failed to read image from S3: " + imageKey + " — " + e.getMessage());
         }
@@ -261,6 +270,7 @@ public class VisionService {
             JsonNode node = MAPPER.readTree(json);
             double confidence = node.path("confidence").asDouble(0.0);
             if (confidence < MIN_CONFIDENCE) {
+                log.info("Vision confidence {} below threshold {}", confidence, MIN_CONFIDENCE);
                 return null;
             }
 

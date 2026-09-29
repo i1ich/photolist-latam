@@ -105,6 +105,7 @@
     <junit.jupiter.version>5.10.2</junit.jupiter.version>
     <junit.platform.version>1.10.2</junit.platform.version>
     <maven.compiler.target>21</maven.compiler.target>
+    <slf4j.version>1.7.36</slf4j.version>
     <cucumber.version>7.15.0</cucumber.version>
   </properties>
 </project>

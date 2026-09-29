@@ -7,9 +7,12 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.photolist.model.AnalyzeRequest;
 import com.photolist.model.AnalyzeResponse;
+import com.photolist.service.ImageNotFoundException;
 import com.photolist.service.MercadoLibreService;
 import com.photolist.service.ServiceException;
 import com.photolist.service.VisionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
@@ -26,6 +29,7 @@ import java.util.Map;
 public class AnalyzePhotoHandler implements
         RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
+    private static final Logger log = LoggerFactory.getLogger(AnalyzePhotoHandler.class);
     private static final int CACHE_TTL_DAYS = 7;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -36,9 +40,11 @@ public class AnalyzePhotoHandler implements
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        String requestId = context != null ? context.getAwsRequestId() : "local";
         try {
             AnalyzeRequest request = parseRequest(event);
             if (request.getImageKey() == null || request.getImageKey().isBlank()) {
+                log.warn("requestId={} status=400 reason=\"imageKey is required\"", requestId);
                 return jsonResponse(400, Map.of("error", "imageKey is required"));
             }
 
@@ -47,12 +53,15 @@ public class AnalyzePhotoHandler implements
 
             AnalyzeResponse cached = loadFromCache(imageHash);
             if (cached != null) {
+                log.info("requestId={} status=200 cache=hit imageKey={}", requestId, imageKey);
                 cached.setCachedAt(cached.getAnalyzedAt());
                 return jsonResponse(200, cached);
             }
 
             VisionService.IdentifyResult identified = visionService.identify(imageKey);
             if (identified == null) {
+                log.info("requestId={} status=422 imageKey={} reason=\"below confidence threshold\"",
+                        requestId, imageKey);
                 return jsonResponse(422, Map.of("error", "Item could not be identified"));
             }
 
@@ -68,14 +77,21 @@ public class AnalyzePhotoHandler implements
 
             saveToCache(imageHash, response);
 
+            log.info("requestId={} status=200 cache=miss imageKey={} site={}",
+                    requestId, imageKey, market.getSite());
             return jsonResponse(200, response);
+        } catch (ImageNotFoundException e) {
+            log.warn("requestId={} status=404 reason=\"{}\"", requestId, e.getMessage());
+            return jsonResponse(404, Map.of("error", e.getMessage()));
         } catch (ServiceException e) {
+            log.error("requestId={} status=502 upstream error: {}", requestId, e.getMessage(), e);
             return jsonResponse(502, Map.of("error", e.getMessage()));
         } catch (IllegalArgumentException e) {
+            log.warn("requestId={} status=400 reason=\"{}\"", requestId, e.getMessage());
             return jsonResponse(400, Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            System.err.println("Unexpected error [" + e.getClass().getName() + "]: " + e.getMessage());
-            e.printStackTrace(System.err);
+            log.error("requestId={} status=500 unexpected error [{}]: {}",
+                    requestId, e.getClass().getName(), e.getMessage(), e);
             return jsonResponse(500, Map.of("error", "Internal server error"));
         }
     }

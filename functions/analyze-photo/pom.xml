@@ -15,6 +15,8 @@
         <maven.compiler.target>21</maven.compiler.target>
         <aws.lambda.java.version>1.2.3</aws.lambda.java.version>
         <aws.sdk.version>2.25.0</aws.sdk.version>
+        <!-- Must stay on 1.7.x: AWS SDK v2 pulls slf4j-api 1.7.x, which cannot see 2.x providers -->
+        <slf4j.version>1.7.36</slf4j.version>
         <cucumber.version>7.15.0</cucumber.version>
         <junit.platform.version>1.10.2</junit.platform.version>
         <junit.jupiter.version>5.10.2</junit.jupiter.version>
@@ -50,6 +52,18 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>ssm</artifactId>
             <version>${aws.sdk.version}</version>
+        </dependency>
+
+        <!-- Logging: slf4j binding so logger output reaches CloudWatch instead of the NOP logger -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
         </dependency>
 
         <!-- Cucumber BDD tests -->

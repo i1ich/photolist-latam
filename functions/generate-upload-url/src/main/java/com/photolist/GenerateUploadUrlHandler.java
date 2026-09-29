@@ -6,6 +6,8 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class GenerateUploadUrlHandler implements
         RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
+    private static final Logger log = LoggerFactory.getLogger(GenerateUploadUrlHandler.class);
     private static final int URL_TTL_SECONDS = 300;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -30,12 +33,15 @@ public class GenerateUploadUrlHandler implements
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        String requestId = context != null ? context.getAwsRequestId() : "local";
         if (bucketName == null || bucketName.isBlank()) {
+            log.error("requestId={} status=500 reason=\"BUCKET_NAME environment variable is not set\"", requestId);
             return jsonResponse(500, Map.of("error", "BUCKET_NAME environment variable is not set"));
         }
 
         String contentType = parseContentType(event);
         if (contentType == null) {
+            log.warn("requestId={} status=400 reason=\"unsupported or unparseable contentType\"", requestId);
             return jsonResponse(400, Map.of("error",
                     "Unsupported contentType. Allowed: image/jpeg, image/png, image/webp"));
         }
@@ -52,6 +58,7 @@ public class GenerateUploadUrlHandler implements
                 .signatureDuration(Duration.ofSeconds(URL_TTL_SECONDS))
                 .putObjectRequest(putObjectRequest));
 
+        log.info("requestId={} status=200 imageKey={} contentType={}", requestId, imageKey, contentType);
         return jsonResponse(200, Map.of(
                 "uploadUrl", presignedRequest.url().toString(),
                 "imageKey", imageKey,
